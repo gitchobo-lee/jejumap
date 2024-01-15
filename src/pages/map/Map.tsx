@@ -1,30 +1,47 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import * as S from "./Map.styled";
-
+import axios from "axios";
+import $ from "jquery";
+import { IAlldata, IFeature, IAddressAndPolygon } from "../../store/atoms";
 declare global {
   interface Window {
     kakao: any;
   }
 }
 
+const axiosInstance = axios.create({
+  baseURL: "http://mapserviceapi.duckdns.org/https://api.vworld.kr",
+});
+
 function Map() {
   const [kakaoMap, setKakaoMap] = useState();
   const [bounds, setBounds] = useState([0, 0, 0, 0]);
   const [maplevel, setMapLevel] = useState(Number);
-  const [allData, setAllData] = useState();
-
+  const [allData, setAllData] = useState<IAlldata>();
+  const [addressAndPolygonList, setAddressAndPolygonList] = useState<
+    IAddressAndPolygon[]
+  >([]);
+  const [fetchFlag, setFetchFlag] = useState(false);
   function drawKakaoMap() {
     let container = document.getElementById("map");
     let options = {
       center: new window.kakao.maps.LatLng(33.3616666, 126.5291666),
-      level: 6,
+      level: 3,
     };
     const map = new window.kakao.maps.Map(container, options);
     window.kakao.maps.event.addListener(map, "zoom_changed", function () {
       setMapLevel(map.getLevel());
+      setBounds([
+        map.getBounds().ha,
+        map.getBounds().qa,
+        map.getBounds().oa,
+        map.getBounds().pa,
+      ]);
     });
-    window.kakao.maps.event.addListener(map, "center_changed", function () {
+    window.kakao.maps.event.addListener(map, "center_changed", function () {});
+    window.kakao.maps.event.addListener(map, "dragend", function () {
+      setMapLevel(map.getLevel());
       setBounds([
         map.getBounds().ha,
         map.getBounds().qa,
@@ -34,35 +51,96 @@ function Map() {
     });
 
     return map;
-  }
+  } // 기본맵 생성완료
+
+  async function getLatLng(vertexes: number[][][]) {
+    let temporary: any[] = [];
+    vertexes[0].map((vertex) => {
+      let latlng = new window.kakao.maps.LatLng(vertex[1], vertex[0]);
+      temporary.push(latlng);
+    });
+    return temporary;
+  } // 폴리곤 생성을 위해 LatLng 배열을 만들어주는 함수
+
+  async function getPolygon(poly: IAddressAndPolygon) {
+    const finalPoly = await getLatLng(poly.polygon)
+      .then((resultArray) => {
+        const Polygon = new window.kakao.maps.Polygon({
+          map: kakaoMap,
+          path: resultArray,
+          strokeWeight: 3,
+          strokeColor: "FF0000",
+          strokeOpacity: 1,
+          //strokeStyle: "",
+          fillColor: "FF0000",
+          fillOpacity: 1,
+          zIndex: 30,
+        });
+        return Polygon;
+      })
+      .then((resultPolygon) => {
+        console.log(resultPolygon.getArea());
+        resultPolygon.setMap(kakaoMap);
+      });
+  } // 최종적인 폴리곤 생성에 기여
 
   useEffect(() => {
     const result = drawKakaoMap();
     setKakaoMap(result);
   }, []);
+
   useEffect(() => {
-    console.log(
-      `https://api.vworld.kr/req/wfs?key=D01E42F1-E0D6-373E-B192-E30F2C44DC62&domain=localhost:3000&SERVICE=WFS&REQUEST=GetFeature&TYPENAME=lp_pa_cbnd_bubun&PROPERTYNAME=ag_geom,addr&VERSION=1.1.0&MAXFEATURES=1000&SRSNAME=EPSG:4326&OUTPUT=application/json&EXCEPTIONS=text/xml&BBOX=${bounds[0]},${bounds[1]},${bounds[2]},${bounds[3]}`
-    );
-    if (maplevel > 5 && bounds[0] !== 0) {
-      setBounds([0, 0, 0, 0]);
+    if (maplevel > 2 && bounds[0] !== 0) {
+      setBounds([37, 127, 37, 127]);
     }
-    if (maplevel <= 5 && bounds[0] !== 0) {
-      fetch(
-        `https://api.vworld.kr/req/wfs?KEY=D01E42F1-E0D6-373E-B192-E30F2C44DC62&DOMAIN=localhost:3000&SERVICE=WFS&REQUEST=GetFeature&TYPENAME=lp_pa_cbnd_bubun&PROPERTYNAME=ag_geom,addr&VERSION=1.1.0&MAXFEATURES=1000&SRSNAME=EPSG:4326&OUTPUT=text/javascript&EXCEPTIONS=text/xml&BBOX=${bounds[0]},${bounds[1]},${bounds[2]},${bounds[3]}`,
-        {
-          method: "GET",
-          credentials: "include",
-        }
-      )
-        .then((Response) => Response.json())
-        .then((jsonResponse) => setAllData(jsonResponse))
-        .catch((err) => console.log(err));
+    if (maplevel <= 2 && bounds[0] !== 0) {
+      $.ajax({
+        type: "get",
+        url: "https://api.vworld.kr/req/wfs?",
+        data: `KEY=F62DC7D5-852D-3E8E-B373-2EDDA7D6B078&domain=mapservice.duckdns.org&SERVICE=WFS&REQUEST=GetFeature&TYPENAME=lp_pa_cbnd_bubun&PROPERTYNAME=ag_geom,addr&VERSION=1.1.0&MAXFEATURES=1000&SRSNAME=EPSG:4326&BBOX=${bounds[0]},${bounds[1]},${bounds[2]},${bounds[3]}&output=text/javascript`,
+        dataType: "jsonp",
+        jsonpCallback: "parseResponse",
+        async: false,
+        success: function (data) {
+          setAllData(data as IAlldata);
+        },
+        error: function (xhr, stat, err) {
+          //console.log(xhr, stat, err);
+        },
+      });
     }
   }, [maplevel, bounds]);
   useEffect(() => {
-    console.log(allData);
+    setFetchFlag(false);
+    let temporary: IAddressAndPolygon[] = [];
+    allData
+      ? allData.features.map((feature) => {
+          temporary.push({
+            address: feature.properties.addr as string,
+            polygon: feature.geometry.coordinates[0],
+          });
+          setAddressAndPolygonList(temporary);
+        })
+      : console.log("반복문 작동실패");
+
+    // 순회해야되는 리스트: features
+    // 각 features안에서 address와 코프룰루 구역의 geometry를 취한다. 여기는 과거에 프로토스의 식민지였다.
   }, [allData]);
+
+  useEffect(() => {
+    if (allData?.totalFeatures === addressAndPolygonList.length) {
+      setFetchFlag(true);
+    }
+  }, [addressAndPolygonList]);
+
+  useEffect(() => {
+    console.log(fetchFlag, addressAndPolygonList);
+    fetchFlag
+      ? addressAndPolygonList.map((poly) => {
+          getPolygon(poly);
+        })
+      : console.log("폴리곤생성 실패");
+  }, [fetchFlag]);
   return (
     <S.Container>
       <S.Map id='map' />
