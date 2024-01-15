@@ -15,10 +15,12 @@ const axiosInstance = axios.create({
 });
 
 function Map() {
-  const [kakaoMap, setKakaoMap] = useState();
+  const [kakaoMap, setKakaoMap] = useState<any>();
   const [bounds, setBounds] = useState([0, 0, 0, 0]);
   const [maplevel, setMapLevel] = useState(Number);
   const [allData, setAllData] = useState<IAlldata>();
+  const [pastAddressList, setPastAddressList] = useState<String[]>([]);
+
   const [addressAndPolygonList, setAddressAndPolygonList] = useState<
     IAddressAndPolygon[]
   >([]);
@@ -39,7 +41,6 @@ function Map() {
         map.getBounds().pa,
       ]);
     });
-    window.kakao.maps.event.addListener(map, "center_changed", function () {});
     window.kakao.maps.event.addListener(map, "dragend", function () {
       setMapLevel(map.getLevel());
       setBounds([
@@ -68,18 +69,17 @@ function Map() {
         const Polygon = new window.kakao.maps.Polygon({
           map: kakaoMap,
           path: resultArray,
-          strokeWeight: 3,
-          strokeColor: "FF0000",
+          strokeWeight: 1,
+          strokeColor: "#FF0000",
           strokeOpacity: 1,
           //strokeStyle: "",
-          fillColor: "FF0000",
-          fillOpacity: 1,
+          fillColor: "#FF9090",
+          fillOpacity: 0.5,
           zIndex: 30,
         });
         return Polygon;
       })
       .then((resultPolygon) => {
-        console.log(resultPolygon.getArea());
         resultPolygon.setMap(kakaoMap);
       });
   } // 최종적인 폴리곤 생성에 기여
@@ -104,9 +104,7 @@ function Map() {
         success: function (data) {
           setAllData(data as IAlldata);
         },
-        error: function (xhr, stat, err) {
-          //console.log(xhr, stat, err);
-        },
+        error: function (xhr, stat, err) {},
       });
     }
   }, [maplevel, bounds]);
@@ -132,14 +130,26 @@ function Map() {
       setFetchFlag(true);
     }
   }, [addressAndPolygonList]);
-
   useEffect(() => {
-    console.log(fetchFlag, addressAndPolygonList);
-    fetchFlag
-      ? addressAndPolygonList.map((poly) => {
+    console.log(pastAddressList);
+  }, [pastAddressList]);
+  useEffect(() => {
+    if (fetchFlag) {
+      addressAndPolygonList.map((poly) => {
+        if (pastAddressList.includes(poly.address)) {
+          console.log("이미있음");
+        } else {
+          console.log(poly.address, pastAddressList);
+          setPastAddressList((pastAddressList) => [
+            ...pastAddressList,
+            poly.address,
+          ]);
           getPolygon(poly);
-        })
-      : console.log("폴리곤생성 실패");
+        }
+      });
+    } else {
+      console.log("폴리곤생성 실패");
+    }
   }, [fetchFlag]);
   return (
     <S.Container>
