@@ -4,6 +4,8 @@ import * as S from "./Map.styled";
 import axios from "axios";
 import $ from "jquery";
 import { IAlldata, IFeature, IAddressAndPolygon } from "../../store/atoms";
+import SearchSection from "../../components/molecules/SearchSection";
+import DataDisplay from "../../components/molecules/DataDisplay";
 declare global {
   interface Window {
     kakao: any;
@@ -20,6 +22,9 @@ function Map() {
   const [maplevel, setMapLevel] = useState(Number);
   const [allData, setAllData] = useState<IAlldata>();
   const [pastAddressList, setPastAddressList] = useState<String[]>([]);
+  const [isMenuClicked, setIsMenuClicked] = useState<Boolean>(false);
+  const [changeColor, setChangeColor] = useState<string[]>([]);
+  const [otherIsOpened, setOtherIsOpened] = useState<Boolean>(false);
 
   const [addressAndPolygonList, setAddressAndPolygonList] = useState<
     IAddressAndPolygon[]
@@ -70,10 +75,10 @@ function Map() {
           map: kakaoMap,
           path: resultArray,
           strokeWeight: 1,
-          strokeColor: "#FF0000",
+          strokeColor: "#000000",
           strokeOpacity: 1,
           //strokeStyle: "",
-          fillColor: "#FF9090",
+          fillColor: "#999999",
           fillOpacity: 0.5,
           zIndex: 30,
         });
@@ -90,9 +95,6 @@ function Map() {
   }, []);
 
   useEffect(() => {
-    if (maplevel > 2 && bounds[0] !== 0) {
-      setBounds([37, 127, 37, 127]);
-    }
     if (maplevel <= 2 && bounds[0] !== 0) {
       $.ajax({
         type: "get",
@@ -151,8 +153,43 @@ function Map() {
       console.log("폴리곤생성 실패");
     }
   }, [fetchFlag]);
+  useEffect(() => {
+    console.log(changeColor);
+  }, [changeColor]);
   return (
     <S.Container>
+      <S.Topbar>
+        <S.MenuButton onClick={() => setIsMenuClicked(!isMenuClicked)} />
+        <S.Logo>SkyPatrol360</S.Logo>
+        <SearchSection />
+      </S.Topbar>
+      <S.Sidebar>
+        <S.MenuSection>
+          <DataDisplay
+            text='전체 목록'
+            data={[
+              { address: "제주특별자치도 제주시 우령2길 19", check: false },
+            ]}
+            onClickFunction={setChangeColor}
+          />
+          <DataDisplay
+            text='미확인 목록'
+            data={[
+              { address: "제주특별자치도 제주시 우령2길 19", check: false },
+            ]}
+            onClickFunction={setChangeColor}
+          />
+          <DataDisplay
+            text='확인 목록'
+            data={[
+              { address: "제주특별자치도 제주시 우령2길 19", check: false },
+            ]}
+            onClickFunction={setChangeColor}
+          />
+        </S.MenuSection>
+        <S.Contact>고객센터</S.Contact>
+      </S.Sidebar>
+
       <S.Map id='map' />
     </S.Container>
   );
