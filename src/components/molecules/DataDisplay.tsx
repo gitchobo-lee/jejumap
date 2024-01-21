@@ -3,18 +3,19 @@ import more from "../../assets/MoreButton.svg";
 import location from "../../assets/location.svg";
 import comment from "../../assets/message-text.svg";
 import xButton from "../../assets/XButton.svg";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { click } from "@testing-library/user-event/dist/click";
 import { IAddressAndCheck, IContent } from "../../store/atoms";
 import { useMutation } from "@apollo/client";
 import { addressAndCheckAtom } from "../../store/atoms";
 import { useRecoilState } from "recoil";
-import { UPDATE_COMMENT_CHECK } from "../../store/gql";
+import { UPDATE_COMMENT_CHECK, UPDATE_COMMENT_ONLY } from "../../store/gql";
 export const Container = styled.div`
   width: 390px;
   padding-bottom: 10px;
   background-color: white;
   border-bottom: 2px solid gray;
+  overflow-x: hidden;
 `;
 export const Bar = styled.div`
   margin-left: 20px;
@@ -137,11 +138,15 @@ export const XButton = styled.div`
   background-position: center;
   background-size: cover;
 `;
-export const ModalCommentArea = styled.div`
+export const ModalCommentArea = styled.textarea`
   width: 450px;
   height: 510px;
   background-color: lightgray;
   margin-left: 20px;
+  border: none;
+  display: flex;
+  text-align: left;
+  vertical-align: top;
 `;
 
 export const ModalSubmitArea = styled.div`
@@ -160,25 +165,38 @@ export const Button = styled.div`
   display: flex;
   justify-content: center;
   margin-right: 10px;
+  cursor: pointer;
 `;
 function DataDisplay({ text, data, onClickFunction }: IContent) {
   const [open, setOpen] = useState<Boolean>(false);
   const [all, setAll] = useState<Boolean>(false);
   const [clickedAddress, setClickedAddress] = useState<IAddressAndCheck[]>([]);
+  const [modalOpen, setModalOpen] = useState<Boolean>(false);
+  const [comment, setComment] = useState<string>("");
   const [addressAndCheck, setAddressAndCheck] =
     useRecoilState(addressAndCheckAtom);
-  const [updateCheckStatus, { data: data2, loading, error }] = useMutation(
-    UPDATE_COMMENT_CHECK,
-    {
+  const [updateCheckStatus, { data: data2, loading: loading2, error: error2 }] =
+    useMutation(UPDATE_COMMENT_CHECK, {
       onCompleted: (data) => {
         setAddressAndCheck(data.postWithCheck);
       },
       onError(error, clientOptions) {
         console.log("올챙이에러", error);
       },
-    }
-  );
-  const [modalOpen, setModalOpen] = useState<Boolean>(false);
+    });
+  const [updateCommentOnly, { data: data3, loading: loading3, error: error3 }] =
+    useMutation(UPDATE_COMMENT_ONLY, {
+      onCompleted: (data) => {
+        setAddressAndCheck(data.postOnlyComment);
+      },
+      onError(error, clientOptions) {
+        console.log("올챙이에러", error);
+      },
+    });
+  const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setComment(e.target.value);
+  };
+
   useEffect(() => {
     all ? setClickedAddress(data) : setClickedAddress([]);
   }, [all]);
@@ -214,7 +232,7 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
           }}
         />
       </Bar>
-      <TextArea style={open ? { height: "300px" } : { height: "0px" }}>
+      <TextArea style={open ? { height: "20vh" } : { height: "0px" }}>
         {open
           ? data.map((Content) => {
               return (
@@ -239,9 +257,6 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
                     }
                     onClick={() => {
                       setModalOpen(!modalOpen);
-                      //updateCheckStatus({
-                      //  variables: { address: Content.address },
-                      //});
                     }}
                   />
                   {modalOpen ? (
@@ -259,10 +274,36 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
                         <CommentMark />
                         <ModalTitle>코멘트</ModalTitle>
                       </ModalAddressArea>
-                      <ModalCommentArea></ModalCommentArea>
+                      <ModalCommentArea
+                        onChange={onChange}
+                        defaultValue={
+                          Content.comment ? Content.comment : undefined
+                        }
+                      />
                       <ModalSubmitArea>
-                        <Button>취소</Button>
                         <Button
+                          onClick={() => {
+                            updateCommentOnly({
+                              variables: {
+                                address: Content.address,
+                                comment: comment,
+                              },
+                            });
+                            setModalOpen(false);
+                          }}
+                        >
+                          취소
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            updateCheckStatus({
+                              variables: {
+                                address: Content.address,
+                                comment: comment,
+                              },
+                            });
+                            setModalOpen(false);
+                          }}
                           style={{ backgroundColor: "rgba(49, 168, 133, 1)" }}
                         >
                           확인

@@ -38,3 +38,14 @@ export const UPDATE_COMMENT_CHECK = gql`
     }
   }
 `;
+
+export const UPDATE_COMMENT_ONLY = gql`
+  mutation ($address: String!, $comment: String) {
+    postOnlyComment(address: $address, comment: $comment) {
+      address
+      check
+      comment
+      polygon
+    }
+  }
+`;
