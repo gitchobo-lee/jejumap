@@ -1,7 +1,15 @@
 import styled from "styled-components";
 import more from "../../assets/MoreButton.svg";
+import location from "../../assets/location.svg";
+import comment from "../../assets/message-text.svg";
+import xButton from "../../assets/XButton.svg";
 import { useEffect, useState } from "react";
 import { click } from "@testing-library/user-event/dist/click";
+import { IAddressAndCheck, IContent } from "../../store/atoms";
+import { useMutation } from "@apollo/client";
+import { addressAndCheckAtom } from "../../store/atoms";
+import { useRecoilState } from "recoil";
+import { UPDATE_COMMENT_CHECK } from "../../store/gql";
 export const Container = styled.div`
   width: 390px;
   padding-bottom: 10px;
@@ -19,7 +27,7 @@ export const Bar = styled.div`
   background-color: lightgray;
 `;
 export const Menuname = styled.div`
-  width: 292px;
+  width: 290px;
   height: 40px;
   display: flex;
   align-items: center;
@@ -77,29 +85,102 @@ export const AddressCheckbox = styled.div`
   border-radius: 5px;
   border: 1px solid black;
 `;
-interface IAddressAndCheck {
-  address: string;
-  check: boolean;
-  comment?: string;
-}
-interface IContent {
-  text: string;
-  data: IAddressAndCheck[];
-  onClickFunction?: any;
-}
+export const Modal = styled.div`
+  width: 490px;
+  height: 645px;
+  position: absolute;
+  background-color: white;
+  border: 1px solid black;
+  z-index: 55;
+  left: 400px;
+  top: 10px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+`;
+export const ModalAddressArea = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: left;
+  height: 30px;
+  width: 490px;
+`;
+export const ModalTitle = styled.div`
+  height: 30px;
+  width: 410px;
+  display: flex;
+  align-items: center;
+  justify-content: left;
+`;
+export const LocationMark = styled.div`
+  height: 20px;
+  width: 20px;
+  margin-left: 20px;
+  background-image: url(${location});
+  background-repeat: no-repeat;
+  background-position: center;
+`;
+export const CommentMark = styled.div`
+  height: 20px;
+  width: 20px;
+  margin-left: 20px;
+  background-image: url(${comment});
+  background-repeat: no-repeat;
+  background-position: center;
+`;
+export const XButton = styled.div`
+  height: 20px;
+  width: 20px;
+  background-image: url(${xButton});
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+`;
+export const ModalCommentArea = styled.div`
+  width: 450px;
+  height: 510px;
+  background-color: lightgray;
+  margin-left: 20px;
+`;
 
+export const ModalSubmitArea = styled.div`
+  width: 490px;
+  height: 40px;
+  display: flex;
+  justify-content: left;
+  padding-top: 20px;
+  margin-left: 334px;
+`;
+
+export const Button = styled.div`
+  width: 60px;
+  height: 20px;
+  border: 1px solid black;
+  display: flex;
+  justify-content: center;
+  margin-right: 10px;
+`;
 function DataDisplay({ text, data, onClickFunction }: IContent) {
   const [open, setOpen] = useState<Boolean>(false);
   const [all, setAll] = useState<Boolean>(false);
-  const [clickedAddress, setClickedAddress] = useState<String[]>([]);
+  const [clickedAddress, setClickedAddress] = useState<IAddressAndCheck[]>([]);
+  const [addressAndCheck, setAddressAndCheck] =
+    useRecoilState(addressAndCheckAtom);
+  const [updateCheckStatus, { data: data2, loading, error }] = useMutation(
+    UPDATE_COMMENT_CHECK,
+    {
+      onCompleted: (data) => {
+        setAddressAndCheck(data.postWithCheck);
+      },
+      onError(error, clientOptions) {
+        console.log("올챙이에러", error);
+      },
+    }
+  );
+  const [modalOpen, setModalOpen] = useState<Boolean>(false);
   useEffect(() => {
-    all
-      ? setClickedAddress(
-          data.map((content) => {
-            return content.address;
-          })
-        )
-      : setClickedAddress([]);
+    all ? setClickedAddress(data) : setClickedAddress([]);
   }, [all]);
   useEffect(() => {
     onClickFunction(clickedAddress);
@@ -109,21 +190,25 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
     <Container>
       <Bar>
         <Menuname>{text}</Menuname>
-        <SelectRail
-          onClick={() => {
-            setAll(!all);
-          }}
-          style={
-            all
-              ? { backgroundColor: "rgba(49, 168, 133, 1)" }
-              : { backgroundColor: "gray" }
-          }
-        >
-          <SelectSwitch
-            style={all ? { marginLeft: "23px" } : { marginLeft: "1px" }}
-          />
-        </SelectRail>
+        {open ? (
+          <SelectRail
+            onClick={() => {
+              setAll(!all);
+            }}
+            style={
+              all
+                ? { backgroundColor: "rgba(49, 168, 133, 1)" }
+                : { backgroundColor: "gray" }
+            }
+          >
+            <SelectSwitch
+              style={all ? { marginLeft: "23px" } : { marginLeft: "1px" }}
+            />
+          </SelectRail>
+        ) : null}
+
         <MoreButton
+          style={!open ? { marginLeft: "10px" } : { marginLeft: "0px" }}
           onClick={() => {
             setOpen(!open);
           }}
@@ -136,10 +221,10 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
                 <AddressList>
                   <AddressTextArea
                     onClick={() => {
-                      setClickedAddress([Content.address]);
+                      setClickedAddress([Content]);
                     }}
                     style={
-                      clickedAddress.includes(Content.address)
+                      clickedAddress.includes(Content)
                         ? { fontWeight: 800 }
                         : { fontWeight: 400 }
                     }
@@ -152,7 +237,39 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
                         ? { backgroundColor: "rgba(49, 168, 133, 1)" }
                         : { backgroundColor: "white" }
                     }
+                    onClick={() => {
+                      setModalOpen(!modalOpen);
+                      //updateCheckStatus({
+                      //  variables: { address: Content.address },
+                      //});
+                    }}
                   />
+                  {modalOpen ? (
+                    <Modal>
+                      <ModalAddressArea>
+                        <LocationMark />
+                        <ModalTitle>{Content.address}</ModalTitle>
+                        <XButton
+                          onClick={() => {
+                            setModalOpen(false);
+                          }}
+                        />
+                      </ModalAddressArea>
+                      <ModalAddressArea>
+                        <CommentMark />
+                        <ModalTitle>코멘트</ModalTitle>
+                      </ModalAddressArea>
+                      <ModalCommentArea></ModalCommentArea>
+                      <ModalSubmitArea>
+                        <Button>취소</Button>
+                        <Button
+                          style={{ backgroundColor: "rgba(49, 168, 133, 1)" }}
+                        >
+                          확인
+                        </Button>
+                      </ModalSubmitArea>
+                    </Modal>
+                  ) : null}
                 </AddressList>
               );
             })

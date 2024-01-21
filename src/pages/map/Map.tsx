@@ -1,20 +1,31 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useQuery, useMutation } from "@apollo/client";
 import * as S from "./Map.styled";
+import {
+  FETCH_ALL_ADDRESS_AND_CHECK,
+  FETCH_ALL_POLYGONS,
+  UPDATE_ADDRESS_AND_CHECK,
+} from "../../store/gql";
 import axios from "axios";
 import $ from "jquery";
-import { IAlldata, IFeature, IAddressAndPolygon } from "../../store/atoms";
+import {
+  IAlldata,
+  IFeature,
+  IAddressAndPolygon,
+  IPolygonQuery,
+  IIllegalBuilding,
+  IAddressAppear,
+  IAddressAndCheck,
+  addressAndCheckAtom,
+} from "../../store/atoms";
 import SearchSection from "../../components/molecules/SearchSection";
 import DataDisplay from "../../components/molecules/DataDisplay";
+import { useRecoilState } from "recoil";
 declare global {
   interface Window {
     kakao: any;
   }
 }
-
-const axiosInstance = axios.create({
-  baseURL: "http://mapserviceapi.duckdns.org/https://api.vworld.kr",
-});
 
 function Map() {
   const [kakaoMap, setKakaoMap] = useState<any>();
@@ -23,13 +34,55 @@ function Map() {
   const [allData, setAllData] = useState<IAlldata>();
   const [pastAddressList, setPastAddressList] = useState<String[]>([]);
   const [isMenuClicked, setIsMenuClicked] = useState<Boolean>(false);
-  const [changeColor, setChangeColor] = useState<string[]>([]);
-  const [otherIsOpened, setOtherIsOpened] = useState<Boolean>(false);
-
+  const [changeColor, setChangeColor] = useState<IAddressAndCheck[]>([]);
+  const [otherIsOpened, setOtherIsOpened] = useState<string>("");
   const [addressAndPolygonList, setAddressAndPolygonList] = useState<
     IAddressAndPolygon[]
   >([]);
+  const [addressAndCheck, setAddressAndCheck] =
+    useRecoilState(addressAndCheckAtom);
+  const [orgBuildingPolygonList, setOrgBuildingPolygonList] = useState<
+    number[][][]
+  >([]);
+  const [illegalBuildingList, setIllegalBuildingList] = useState<
+    IIllegalBuilding[]
+  >([]);
   const [fetchFlag, setFetchFlag] = useState(false);
+  const [illegalAddress, setIllegalAddress] = useState<String[]>([]);
+
+  const { loading, error, data } = useQuery(FETCH_ALL_POLYGONS, {
+    fetchPolicy: "no-cache",
+    onCompleted: (data: IPolygonQuery) => {
+      setOrgBuildingPolygonList(data.allPolygon.polygons);
+    },
+  });
+  const {
+    loading: addLoading,
+    error: addError,
+    data: addData,
+  } = useQuery(FETCH_ALL_ADDRESS_AND_CHECK, {
+    fetchPolicy: "no-cache",
+    onCompleted: (data: { allAddressAndCheck: IAddressAndCheck[] }) => {
+      setAddressAndCheck(data.allAddressAndCheck);
+    },
+    onError: (error) => {
+      console.log("에러", error);
+    },
+  });
+  const [
+    updateAddressAndCheck,
+    { data: data2, loading: zzimHouseLoading, error: error2 },
+  ] = useMutation(UPDATE_ADDRESS_AND_CHECK, {
+    onCompleted: (data) => {
+      console.log(data.postAddress, "새로 들어온 데이터");
+      setAddressAndCheck(data.postAddress);
+    },
+    onError(error, clientOptions) {
+      console.log("올챙이에러", error);
+    },
+  });
+  const geocoder = new window.kakao.maps.services.Geocoder();
+
   function drawKakaoMap() {
     let container = document.getElementById("map");
     let options = {
@@ -67,9 +120,10 @@ function Map() {
     });
     return temporary;
   } // 폴리곤 생성을 위해 LatLng 배열을 만들어주는 함수
-
-  async function getPolygon(poly: IAddressAndPolygon) {
-    const finalPoly = await getLatLng(poly.polygon)
+  async function getBuildingPolygon(poly: number[][]) {
+    const finalPoly = await getLatLng([
+      poly.map((content) => [content[1], content[0]]),
+    ])
       .then((resultArray) => {
         const Polygon = new window.kakao.maps.Polygon({
           map: kakaoMap,
@@ -78,7 +132,7 @@ function Map() {
           strokeColor: "#000000",
           strokeOpacity: 1,
           //strokeStyle: "",
-          fillColor: "#999999",
+          fillColor: "#000000",
           fillOpacity: 0.5,
           zIndex: 30,
         });
@@ -87,7 +141,114 @@ function Map() {
       .then((resultPolygon) => {
         resultPolygon.setMap(kakaoMap);
       });
+  }
+
+  async function getPolygon(
+    poly: IAddressAndPolygon,
+    color?: string,
+    zIndex?: number,
+    wantErase?: boolean
+  ) {
+    const finalPoly = await getLatLng(poly.polygon)
+      .then((resultArray) => {
+        const Polygon = new window.kakao.maps.Polygon({
+          map: kakaoMap,
+          path: resultArray,
+          strokeWeight: 1,
+          strokeColor: `${color ? color : "#000000"}`,
+          strokeOpacity: 1,
+          //strokeStyle: "",
+          fillColor: `${color ? color : "#999999"}`,
+          fillOpacity: 0.5,
+          zIndex: `${zIndex ? zIndex : 30}`,
+        });
+        return Polygon;
+      })
+      .then((resultPolygon) => {
+        resultPolygon.setMap(wantErase ? null : kakaoMap);
+      });
   } // 최종적인 폴리곤 생성에 기여
+  async function getBuildingPolygonAddress(building: number[][]) {
+    const addressAppear: IAddressAppear[] = [];
+
+    await Promise.all(
+      building.map(async (coordinate) => {
+        const coord = new window.kakao.maps.LatLng(
+          coordinate[0],
+          coordinate[1]
+        );
+        const address = await new Promise((resolve) => {
+          geocoder.coord2Address(
+            coord.getLng(),
+            coord.getLat(),
+            (result: any, status: any) => {
+              if (status === window.kakao.maps.services.Status.OK) {
+                resolve(result[0].address.address_name);
+              } else {
+                resolve(null); // Resolve with null or handle errors accordingly
+              }
+            }
+          );
+        });
+
+        if (address !== null) {
+          const elementToUpdate = addressAppear.find(
+            (item) => item.address === address
+          );
+          if (elementToUpdate) {
+            elementToUpdate.times += 1;
+          } else {
+            addressAppear.push({
+              address: address as string,
+              times: 1,
+              polygon: building,
+            });
+          }
+        }
+      })
+    );
+
+    return addressAppear;
+  }
+
+  async function refinery(buildings: number[][][]) {
+    const allAddressAppear = await Promise.all(
+      buildings.map(getBuildingPolygonAddress)
+    );
+
+    allAddressAppear.forEach((addressAppear) => {
+      if (addressAppear.length >= 2) {
+        const maxValue = Math.max(
+          ...addressAppear.map((content) => content.times)
+        );
+        const finalAddress = addressAppear.find(
+          (item) => item.times === maxValue
+        );
+        if (finalAddress) {
+          setIllegalBuildingList((illegalBuildingList) => [
+            ...illegalBuildingList,
+            { address: finalAddress.address, polygon: finalAddress.polygon },
+          ]);
+        }
+      }
+    });
+  }
+
+  async function findTarget(input: IAddressAndCheck) {
+    const target = addressAndPolygonList.find(
+      (element) => element.address === input.address
+    );
+
+    if (target) {
+      if (!illegalAddress.includes(input.address)) {
+        setIllegalAddress((illegalAddress) => [
+          ...illegalAddress,
+          input.address,
+        ]);
+        getPolygon(target, "#FF0000", 35, false);
+      }
+    }
+  }
 
   useEffect(() => {
     const result = drawKakaoMap();
@@ -106,7 +267,9 @@ function Map() {
         success: function (data) {
           setAllData(data as IAlldata);
         },
-        error: function (xhr, stat, err) {},
+        error: function (xhr, stat, err) {
+          console.log(err, "브이월드 Fetch중 에러 발생");
+        },
       });
     }
   }, [maplevel, bounds]);
@@ -132,16 +295,13 @@ function Map() {
       setFetchFlag(true);
     }
   }, [addressAndPolygonList]);
-  useEffect(() => {
-    console.log(pastAddressList);
-  }, [pastAddressList]);
+
   useEffect(() => {
     if (fetchFlag) {
       addressAndPolygonList.map((poly) => {
         if (pastAddressList.includes(poly.address)) {
           console.log("이미있음");
         } else {
-          console.log(poly.address, pastAddressList);
           setPastAddressList((pastAddressList) => [
             ...pastAddressList,
             poly.address,
@@ -149,13 +309,49 @@ function Map() {
           getPolygon(poly);
         }
       });
-    } else {
-      console.log("폴리곤생성 실패");
     }
   }, [fetchFlag]);
+
   useEffect(() => {
-    console.log(changeColor);
-  }, [changeColor]);
+    refinery(orgBuildingPolygonList);
+    console.log(orgBuildingPolygonList);
+  }, [orgBuildingPolygonList]);
+
+  useEffect(() => {
+    if (addressAndCheck) {
+      illegalBuildingList.map((Content) => {
+        const dontAppend = addressAndCheck.find(
+          (item) => item.address === Content.address
+        );
+        if (!dontAppend) {
+          updateAddressAndCheck({
+            variables: {
+              address: Content.address,
+              polygon: Content.polygon,
+            },
+          });
+        }
+        getBuildingPolygon(Content.polygon);
+      });
+    } else {
+      console.log(addressAndCheck, "fetch가 안됨");
+    }
+  }, [addressAndCheck, illegalBuildingList]);
+
+  useEffect(() => {
+    if (changeColor.length === 1) {
+      kakaoMap.setCenter(
+        new window.kakao.maps.LatLng(
+          changeColor[0].polygon[0][0],
+          changeColor[0].polygon[0][1]
+        )
+      );
+      kakaoMap.setLevel(1);
+      if (fetchFlag) {
+        findTarget(changeColor[0]);
+      }
+    }
+  }, [changeColor, fetchFlag]);
   return (
     <S.Container>
       <S.Topbar>
@@ -167,23 +363,17 @@ function Map() {
         <S.MenuSection>
           <DataDisplay
             text='전체 목록'
-            data={[
-              { address: "제주특별자치도 제주시 우령2길 19", check: false },
-            ]}
+            data={addressAndCheck}
             onClickFunction={setChangeColor}
           />
           <DataDisplay
             text='미확인 목록'
-            data={[
-              { address: "제주특별자치도 제주시 우령2길 19", check: false },
-            ]}
+            data={addressAndCheck.filter((Content) => Content.check === false)}
             onClickFunction={setChangeColor}
           />
           <DataDisplay
             text='확인 목록'
-            data={[
-              { address: "제주특별자치도 제주시 우령2길 19", check: false },
-            ]}
+            data={addressAndCheck.filter((Content) => Content.check === true)}
             onClickFunction={setChangeColor}
           />
         </S.MenuSection>
