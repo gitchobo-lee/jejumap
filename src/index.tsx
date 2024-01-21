@@ -4,16 +4,23 @@ import "./index.css";
 import App from "./App";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClientProvider, QueryClient } from "react-query";
+import { ApolloClient, InMemoryCache, ApolloProvider } from "@apollo/client";
 
 const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
 );
 const queryClient = new QueryClient();
+const client = new ApolloClient({
+  uri: "http://mapserviceapi.duckdns.org",
+  cache: new InMemoryCache(),
+});
 root.render(
   <QueryClientProvider client={queryClient}>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <ApolloProvider client={client}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </ApolloProvider>
   </QueryClientProvider>
 );
 
