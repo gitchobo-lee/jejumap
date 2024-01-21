@@ -61,3 +61,7 @@ export const addressAndCheckAtom = atom<IAddressAndCheck[]>({
   key: "addressAndChecks",
   default: [],
 });
+
+export interface IJustFunction {
+  onClickFunction?: any;
+}

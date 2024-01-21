@@ -1,5 +1,7 @@
 import styled from "styled-components";
 import search from "../../assets/SearchButton.svg";
+import { useEffect, useState } from "react";
+import { IJustFunction } from "../../store/atoms";
 export const Container = styled.div`
   background-color: white;
   display: flex;
@@ -16,18 +18,26 @@ export const SearchButton = styled.button`
   width: 38px;
   border: none;
   background-image: url(${search});
+  cursor: pointer;
 `;
-export const TextArea = styled.div`
+export const TextArea = styled.input`
   height: 38px;
   width: 400px;
   background-color: white;
+  border: none;
 `;
 
-function SearchSection() {
+function SearchSection({ onClickFunction }: IJustFunction) {
+  const [address, setAddress] = useState<String>("");
+  const [addressToSend, setAddressToSend] = useState<String>("");
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAddress(e.target.value);
+  };
+
   return (
     <Container>
-      <TextArea />
-      <SearchButton />
+      <TextArea onChange={onChange} />
+      <SearchButton onClick={() => onClickFunction(address)} />
     </Container>
   );
 }

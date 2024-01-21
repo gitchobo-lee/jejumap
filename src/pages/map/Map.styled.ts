@@ -60,7 +60,10 @@ export const Sidebar = styled.div`
   grid-template-rows: auto 46px;
 `;
 
-export const MenuSection = styled.div``;
+export const MenuSection = styled.div`
+  overflow-y: scroll;
+  overflow-x: hidden;
+`;
 
 export const Contact = styled.div`
   background-color: lightgray;

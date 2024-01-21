@@ -39,6 +39,7 @@ function Map() {
   const [addressAndPolygonList, setAddressAndPolygonList] = useState<
     IAddressAndPolygon[]
   >([]);
+  const [searchedAddress, setSearchedAddress] = useState<string>("");
   const [addressAndCheck, setAddressAndCheck] =
     useRecoilState(addressAndCheckAtom);
   const [orgBuildingPolygonList, setOrgBuildingPolygonList] = useState<
@@ -350,14 +351,37 @@ function Map() {
       if (fetchFlag) {
         findTarget(changeColor[0]);
       }
+    } else if (changeColor.length > 1) {
+      kakaoMap.setCenter(
+        new window.kakao.maps.LatLng(
+          changeColor[0].polygon[0][0],
+          changeColor[0].polygon[0][1]
+        )
+      );
+      kakaoMap.setLevel(1);
+      if (fetchFlag) {
+        changeColor.map((content) => {
+          findTarget(content);
+        });
+      }
     }
   }, [changeColor, fetchFlag]);
+  useEffect(() => {
+    const callback = function (result: any, status: any) {
+      if (status === window.kakao.maps.services.Status.OK) {
+        kakaoMap.setCenter(
+          new window.kakao.maps.LatLng(result[0].y, result[0].x)
+        );
+      }
+    };
+    geocoder.addressSearch(searchedAddress, callback);
+  }, [searchedAddress]);
   return (
     <S.Container>
       <S.Topbar>
         <S.MenuButton onClick={() => setIsMenuClicked(!isMenuClicked)} />
         <S.Logo>SkyPatrol360</S.Logo>
-        <SearchSection />
+        <SearchSection onClickFunction={setSearchedAddress} />
       </S.Topbar>
       <S.Sidebar>
         <S.MenuSection>
