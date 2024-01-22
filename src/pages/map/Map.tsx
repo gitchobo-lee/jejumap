@@ -257,6 +257,7 @@ function Map() {
   }, []);
 
   useEffect(() => {
+    console.log(bounds);
     if (maplevel <= 2 && bounds[0] !== 0) {
       $.ajax({
         type: "get",

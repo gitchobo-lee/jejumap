@@ -49,3 +49,14 @@ export const UPDATE_COMMENT_ONLY = gql`
     }
   }
 `;
+
+export const UPDATE_COMMENT_CANCEL = gql`
+  mutation ($address: String!, $comment: String) {
+    postCancel(address: $address, comment: $comment) {
+      address
+      check
+      comment
+      polygon
+    }
+  }
+`;
