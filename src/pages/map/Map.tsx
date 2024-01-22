@@ -28,6 +28,10 @@ declare global {
 }
 
 function Map() {
+  const apiUrl =
+    "http://ec2-43-201-0-153.ap-northeast-2.compute.amazonaws.com:8000/";
+
+  const finalUrl = `${apiUrl}`;
   const [kakaoMap, setKakaoMap] = useState<any>();
   const [bounds, setBounds] = useState([0, 0, 0, 0]);
   const [maplevel, setMapLevel] = useState(Number);
@@ -51,12 +55,6 @@ function Map() {
   const [fetchFlag, setFetchFlag] = useState(false);
   const [illegalAddress, setIllegalAddress] = useState<String[]>([]);
 
-  const { loading, error, data } = useQuery(FETCH_ALL_POLYGONS, {
-    fetchPolicy: "no-cache",
-    onCompleted: (data: IPolygonQuery) => {
-      setOrgBuildingPolygonList(data.allPolygon.polygons);
-    },
-  });
   const {
     loading: addLoading,
     error: addError,
@@ -258,6 +256,10 @@ function Map() {
 
   useEffect(() => {
     console.log(bounds);
+    const jsonData = {
+      result: [bounds[0], bounds[3], bounds[2], bounds[1]],
+    };
+    const jsonString = JSON.stringify(jsonData);
     if (maplevel <= 2 && bounds[0] !== 0) {
       $.ajax({
         type: "get",
@@ -273,6 +275,32 @@ function Map() {
           console.log(err, "브이월드 Fetch중 에러 발생");
         },
       });
+      fetch(finalUrl, {
+        method: "post",
+        headers: { "Content-Type": "application/json" },
+        body: jsonString,
+      })
+        .then((response) => response.json())
+        .then((data: any) => {
+          !data.error
+            ? setOrgBuildingPolygonList(data.polygon)
+            : console.log(data.error);
+        });
+      //$.ajax({
+      //  type: "get",
+      //  url: finalUrl,
+      //
+      //  contentType: "application/json",
+      //  data: jsonString,
+      //  dataType: "json",
+      //  async: false,
+      //  success: function (data) {
+      //    console.log(data);
+      //  },
+      //  error: function (xhr, stat, err) {
+      //    console.log(err, "aws Fetch중 에러 발생");
+      //  },
+      //});
     }
   }, [maplevel, bounds]);
   useEffect(() => {
