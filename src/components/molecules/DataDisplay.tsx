@@ -9,7 +9,11 @@ import { IAddressAndCheck, IContent } from "../../store/atoms";
 import { useMutation } from "@apollo/client";
 import { addressAndCheckAtom } from "../../store/atoms";
 import { useRecoilState } from "recoil";
-import { UPDATE_COMMENT_CHECK, UPDATE_COMMENT_ONLY } from "../../store/gql";
+import {
+  UPDATE_COMMENT_CANCEL,
+  UPDATE_COMMENT_CHECK,
+  UPDATE_COMMENT_ONLY,
+} from "../../store/gql";
 export const Container = styled.div`
   width: 390px;
   padding-bottom: 10px;
@@ -88,7 +92,7 @@ export const AddressCheckbox = styled.div`
 `;
 export const Modal = styled.div`
   width: 490px;
-  height: 645px;
+  height: 60vh;
   position: absolute;
   background-color: white;
   border: 1px solid black;
@@ -140,7 +144,7 @@ export const XButton = styled.div`
 `;
 export const ModalCommentArea = styled.textarea`
   width: 450px;
-  height: 510px;
+  height: 50vh;
   background-color: lightgray;
   margin-left: 20px;
   border: none;
@@ -155,11 +159,11 @@ export const ModalSubmitArea = styled.div`
   display: flex;
   justify-content: left;
   padding-top: 20px;
-  margin-left: 334px;
+  margin-left: 210px;
 `;
 
 export const Button = styled.div`
-  width: 60px;
+  width: 80px;
   height: 20px;
   border: 1px solid black;
   display: flex;
@@ -193,6 +197,17 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
         console.log("올챙이에러", error);
       },
     });
+  const [
+    updateCommentCancel,
+    { data: data4, loading: loading4, error: error4 },
+  ] = useMutation(UPDATE_COMMENT_CANCEL, {
+    onCompleted: (data) => {
+      setAddressAndCheck(data.postCancel);
+    },
+    onError(error, clientOptions) {
+      console.log("올챙이에러", error);
+    },
+  });
   const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setComment(e.target.value);
   };
@@ -283,19 +298,6 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
                       <ModalSubmitArea>
                         <Button
                           onClick={() => {
-                            updateCommentOnly({
-                              variables: {
-                                address: Content.address,
-                                comment: comment,
-                              },
-                            });
-                            setModalOpen(false);
-                          }}
-                        >
-                          취소
-                        </Button>
-                        <Button
-                          onClick={() => {
                             updateCheckStatus({
                               variables: {
                                 address: Content.address,
@@ -307,6 +309,33 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
                           style={{ backgroundColor: "rgba(49, 168, 133, 1)" }}
                         >
                           확인
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            updateCommentOnly({
+                              variables: {
+                                address: Content.address,
+                                comment: comment,
+                              },
+                            });
+                            setModalOpen(false);
+                          }}
+                        >
+                          취소
+                        </Button>
+
+                        <Button
+                          onClick={() => {
+                            updateCommentCancel({
+                              variables: {
+                                address: Content.address,
+                                comment: comment,
+                              },
+                            });
+                            setModalOpen(false);
+                          }}
+                        >
+                          체크취소
                         </Button>
                       </ModalSubmitArea>
                     </Modal>
