@@ -23,6 +23,11 @@ export interface IFeature {
   };
 }
 
+export interface IAddressAndKakaoPolygon {
+  polygon: any;
+  address: string;
+}
+
 export interface IAddressAndPolygon {
   polygon: number[][][];
   address: string;

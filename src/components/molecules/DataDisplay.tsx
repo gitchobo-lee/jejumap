@@ -175,7 +175,7 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
   const [open, setOpen] = useState<Boolean>(false);
   const [all, setAll] = useState<Boolean>(false);
   const [clickedAddress, setClickedAddress] = useState<IAddressAndCheck[]>([]);
-  const [modalOpen, setModalOpen] = useState<Boolean>(false);
+  const [modalOpen, setModalOpen] = useState<string>("");
   const [comment, setComment] = useState<string>("");
   const [addressAndCheck, setAddressAndCheck] =
     useRecoilState(addressAndCheckAtom);
@@ -271,17 +271,17 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
                         : { backgroundColor: "white" }
                     }
                     onClick={() => {
-                      setModalOpen(!modalOpen);
+                      setModalOpen(Content.address);
                     }}
                   />
-                  {modalOpen ? (
+                  {modalOpen === Content.address ? (
                     <Modal>
                       <ModalAddressArea>
                         <LocationMark />
                         <ModalTitle>{Content.address}</ModalTitle>
                         <XButton
                           onClick={() => {
-                            setModalOpen(false);
+                            setModalOpen("");
                           }}
                         />
                       </ModalAddressArea>
@@ -304,7 +304,7 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
                                 comment: comment,
                               },
                             });
-                            setModalOpen(false);
+                            setModalOpen("");
                           }}
                           style={{ backgroundColor: "rgba(49, 168, 133, 1)" }}
                         >
@@ -318,7 +318,7 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
                                 comment: comment,
                               },
                             });
-                            setModalOpen(false);
+                            setModalOpen("");
                           }}
                         >
                           취소
@@ -332,7 +332,7 @@ function DataDisplay({ text, data, onClickFunction }: IContent) {
                                 comment: comment,
                               },
                             });
-                            setModalOpen(false);
+                            setModalOpen("");
                           }}
                         >
                           체크취소

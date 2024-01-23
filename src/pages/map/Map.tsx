@@ -17,6 +17,7 @@ import {
   IAddressAppear,
   IAddressAndCheck,
   addressAndCheckAtom,
+  IAddressAndKakaoPolygon,
 } from "../../store/atoms";
 import SearchSection from "../../components/molecules/SearchSection";
 import DataDisplay from "../../components/molecules/DataDisplay";
@@ -54,6 +55,9 @@ function Map() {
   >([]);
   const [fetchFlag, setFetchFlag] = useState(false);
   const [illegalAddress, setIllegalAddress] = useState<String[]>([]);
+  const [addressAndKakaoPolygon, setAddressAndKakaoPolygon] = useState<
+    IAddressAndKakaoPolygon[]
+  >([]);
 
   const {
     loading: addLoading,
@@ -73,11 +77,7 @@ function Map() {
     { data: data2, loading: zzimHouseLoading, error: error2 },
   ] = useMutation(UPDATE_ADDRESS_AND_CHECK, {
     onCompleted: (data) => {
-      console.log(data.postAddress, "새로 들어온 데이터");
       setAddressAndCheck(data.postAddress);
-    },
-    onError(error, clientOptions) {
-      console.log("올챙이에러", error);
     },
   });
   const geocoder = new window.kakao.maps.services.Geocoder();
@@ -90,6 +90,7 @@ function Map() {
     };
     const map = new window.kakao.maps.Map(container, options);
     window.kakao.maps.event.addListener(map, "zoom_changed", function () {
+      setChangeColor([]);
       setMapLevel(map.getLevel());
       setBounds([
         map.getBounds().ha,
@@ -99,6 +100,7 @@ function Map() {
       ]);
     });
     window.kakao.maps.event.addListener(map, "dragend", function () {
+      setChangeColor([]);
       setMapLevel(map.getLevel());
       setBounds([
         map.getBounds().ha,
@@ -142,29 +144,27 @@ function Map() {
       });
   }
 
-  async function getPolygon(
-    poly: IAddressAndPolygon,
-    color?: string,
-    zIndex?: number,
-    wantErase?: boolean
-  ) {
+  async function getPolygon(poly: IAddressAndPolygon) {
     const finalPoly = await getLatLng(poly.polygon)
       .then((resultArray) => {
         const Polygon = new window.kakao.maps.Polygon({
           map: kakaoMap,
           path: resultArray,
           strokeWeight: 1,
-          strokeColor: `${color ? color : "#000000"}`,
+          strokeColor: "#000000",
           strokeOpacity: 1,
           //strokeStyle: "",
-          fillColor: `${color ? color : "#999999"}`,
+          fillColor: "#999999",
           fillOpacity: 0.5,
-          zIndex: `${zIndex ? zIndex : 30}`,
+          zIndex: 30,
         });
         return Polygon;
       })
       .then((resultPolygon) => {
-        resultPolygon.setMap(wantErase ? null : kakaoMap);
+        setAddressAndKakaoPolygon((addressAndKakaoPolygon) => [
+          ...addressAndKakaoPolygon,
+          { address: poly.address, polygon: resultPolygon },
+        ]);
       });
   } // 최종적인 폴리곤 생성에 기여
   async function getBuildingPolygonAddress(building: number[][]) {
@@ -212,7 +212,15 @@ function Map() {
 
   async function refinery(buildings: number[][][]) {
     const allAddressAppear = await Promise.all(
-      buildings.map(getBuildingPolygonAddress)
+      buildings.map((Building) =>
+        Building.length > 20
+          ? getBuildingPolygonAddress(
+              Building.filter((element, index) => index % 5 === 0)
+            )
+          : getBuildingPolygonAddress(
+              Building.filter((element, index) => index % 2 === 0)
+            )
+      )
     );
 
     allAddressAppear.forEach((addressAppear) => {
@@ -234,7 +242,7 @@ function Map() {
   }
 
   async function findTarget(input: IAddressAndCheck) {
-    const target = addressAndPolygonList.find(
+    const target = addressAndKakaoPolygon.find(
       (element) => element.address === input.address
     );
 
@@ -244,7 +252,15 @@ function Map() {
           ...illegalAddress,
           input.address,
         ]);
-        getPolygon(target, "#FF0000", 35, false);
+        target.polygon.setOptions({
+          strokeWeight: 1,
+          strokeColor: "#FF0000",
+          strokeOpacity: 1,
+          //strokeStyle: "",
+          fillColor: "#FF0000",
+          fillOpacity: 0.5,
+          zIndex: 30,
+        });
       }
     }
   }
@@ -255,8 +271,8 @@ function Map() {
   }, []);
 
   useEffect(() => {
-    console.log(bounds);
     const jsonData = {
+      // 좌측상단, 우측하단
       result: [bounds[0], bounds[3], bounds[2], bounds[1]],
     };
     const jsonString = JSON.stringify(jsonData);
@@ -275,6 +291,8 @@ function Map() {
           console.log(err, "브이월드 Fetch중 에러 발생");
         },
       });
+    }
+    if (maplevel === 1 && bounds[0] !== 0) {
       fetch(finalUrl, {
         method: "post",
         headers: { "Content-Type": "application/json" },
@@ -286,21 +304,6 @@ function Map() {
             ? setOrgBuildingPolygonList(data.polygon)
             : console.log(data.error);
         });
-      //$.ajax({
-      //  type: "get",
-      //  url: finalUrl,
-      //
-      //  contentType: "application/json",
-      //  data: jsonString,
-      //  dataType: "json",
-      //  async: false,
-      //  success: function (data) {
-      //    console.log(data);
-      //  },
-      //  error: function (xhr, stat, err) {
-      //    console.log(err, "aws Fetch중 에러 발생");
-      //  },
-      //});
     }
   }, [maplevel, bounds]);
   useEffect(() => {
@@ -344,7 +347,6 @@ function Map() {
 
   useEffect(() => {
     refinery(orgBuildingPolygonList);
-    console.log(orgBuildingPolygonList);
   }, [orgBuildingPolygonList]);
 
   useEffect(() => {
@@ -363,8 +365,6 @@ function Map() {
         }
         getBuildingPolygon(Content.polygon);
       });
-    } else {
-      console.log(addressAndCheck, "fetch가 안됨");
     }
   }, [addressAndCheck, illegalBuildingList]);
 
@@ -380,6 +380,19 @@ function Map() {
       if (fetchFlag) {
         findTarget(changeColor[0]);
       }
+      addressAndKakaoPolygon
+        .filter((Content) => Content.address !== changeColor[0].address)
+        .map((Content) =>
+          Content.polygon.setOptions({
+            strokeWeight: 1,
+            strokeColor: "#000000",
+            strokeOpacity: 1,
+            //strokeStyle: "",
+            fillColor: "#999999",
+            fillOpacity: 0.5,
+            zIndex: 30,
+          })
+        );
     } else if (changeColor.length > 1) {
       kakaoMap.setCenter(
         new window.kakao.maps.LatLng(
@@ -392,6 +405,24 @@ function Map() {
         changeColor.map((content) => {
           findTarget(content);
         });
+        addressAndKakaoPolygon
+          .filter(
+            (Content) =>
+              !changeColor
+                .map((Content) => Content.address)
+                .includes(Content.address)
+          )
+          .map((Content) =>
+            Content.polygon.setOptions({
+              strokeWeight: 1,
+              strokeColor: "#000000",
+              strokeOpacity: 1,
+              //strokeStyle: "",
+              fillColor: "#999999",
+              fillOpacity: 0.5,
+              zIndex: 30,
+            })
+          );
       }
     }
   }, [changeColor, fetchFlag]);
@@ -405,6 +436,9 @@ function Map() {
     };
     geocoder.addressSearch(searchedAddress, callback);
   }, [searchedAddress]);
+  useEffect(() => {
+    addressAndKakaoPolygon.map((Content) => Content.polygon.setMap(kakaoMap));
+  }, [addressAndKakaoPolygon]);
   return (
     <S.Container>
       <S.Topbar>
