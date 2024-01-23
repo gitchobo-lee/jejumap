@@ -74,3 +74,20 @@ export const Contact = styled.div`
   width: 370px;
   height: 46px;
 `;
+
+export const FetchButton = styled.button`
+  background-color: lightgray;
+  border-radius: 5px;
+  width: max-content;
+  height: 20px;
+  border: 1px solid black;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  grid-row-start: 2;
+  grid-column-start: 3;
+  grid-column-end: 3;
+  font-family: "Khyay";
+  margin-left: 50vw;
+`;

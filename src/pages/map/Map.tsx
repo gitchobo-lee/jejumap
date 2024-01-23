@@ -58,6 +58,10 @@ function Map() {
   const [addressAndKakaoPolygon, setAddressAndKakaoPolygon] = useState<
     IAddressAndKakaoPolygon[]
   >([]);
+  const [buildingAndKakaoPolygon, setBuildingAndKakaoPolygon] = useState<
+    IAddressAndKakaoPolygon[]
+  >([]);
+  const [fetchValue, setFetchValue] = useState<number>(0);
 
   const {
     loading: addLoading,
@@ -87,10 +91,10 @@ function Map() {
     let options = {
       center: new window.kakao.maps.LatLng(33.3616666, 126.5291666),
       level: 3,
+      mapTypeId: window.kakao.maps.MapTypeId.SKYVIEW,
     };
     const map = new window.kakao.maps.Map(container, options);
     window.kakao.maps.event.addListener(map, "zoom_changed", function () {
-      setChangeColor([]);
       setMapLevel(map.getLevel());
       setBounds([
         map.getBounds().ha,
@@ -100,7 +104,6 @@ function Map() {
       ]);
     });
     window.kakao.maps.event.addListener(map, "dragend", function () {
-      setChangeColor([]);
       setMapLevel(map.getLevel());
       setBounds([
         map.getBounds().ha,
@@ -121,9 +124,9 @@ function Map() {
     });
     return temporary;
   } // 폴리곤 생성을 위해 LatLng 배열을 만들어주는 함수
-  async function getBuildingPolygon(poly: number[][]) {
+  async function getBuildingPolygon(poly: IIllegalBuilding) {
     const finalPoly = await getLatLng([
-      poly.map((content) => [content[1], content[0]]),
+      poly.polygon.map((content) => [content[1], content[0]]),
     ])
       .then((resultArray) => {
         const Polygon = new window.kakao.maps.Polygon({
@@ -140,7 +143,11 @@ function Map() {
         return Polygon;
       })
       .then((resultPolygon) => {
-        resultPolygon.setMap(kakaoMap);
+        setBuildingAndKakaoPolygon((buildingAndKakaoPolygon) => [
+          ...buildingAndKakaoPolygon,
+          { address: poly.address, polygon: resultPolygon },
+        ]);
+        //resultPolygon.setMap(kakaoMap);
       });
   }
 
@@ -252,16 +259,16 @@ function Map() {
           ...illegalAddress,
           input.address,
         ]);
-        target.polygon.setOptions({
-          strokeWeight: 1,
-          strokeColor: "#FF0000",
-          strokeOpacity: 1,
-          //strokeStyle: "",
-          fillColor: "#FF0000",
-          fillOpacity: 0.5,
-          zIndex: 30,
-        });
       }
+      target.polygon.setOptions({
+        strokeWeight: 1,
+        strokeColor: "#FF0000",
+        strokeOpacity: 1,
+        //strokeStyle: "",
+        fillColor: "#FF0000",
+        fillOpacity: 0.5,
+        zIndex: 30,
+      });
     }
   }
 
@@ -271,11 +278,6 @@ function Map() {
   }, []);
 
   useEffect(() => {
-    const jsonData = {
-      // 좌측상단, 우측하단
-      result: [bounds[0], bounds[3], bounds[2], bounds[1]],
-    };
-    const jsonString = JSON.stringify(jsonData);
     if (maplevel <= 2 && bounds[0] !== 0) {
       $.ajax({
         type: "get",
@@ -292,7 +294,18 @@ function Map() {
         },
       });
     }
-    if (maplevel === 1 && bounds[0] !== 0) {
+  }, [maplevel, bounds]);
+
+  useEffect(() => {
+    console.log([bounds[0], bounds[3], bounds[2], bounds[1]]);
+    const jsonData = {
+      // 좌측상단, 우측하단
+      result: [bounds[0], bounds[3], bounds[2], bounds[1]],
+    };
+    const jsonString = JSON.stringify(jsonData);
+
+    if (maplevel <= 1 && bounds[0] !== 0) {
+      console.log([bounds[0], bounds[3], bounds[2], bounds[1]]);
       fetch(finalUrl, {
         method: "post",
         headers: { "Content-Type": "application/json" },
@@ -302,10 +315,20 @@ function Map() {
         .then((data: any) => {
           !data.error
             ? setOrgBuildingPolygonList(data.polygon)
-            : console.log(data.error);
+            : alert("현재 지도에 아직 데이터가 없습니다.");
         });
+    } else {
+      if (fetchValue !== 0) {
+        alert(
+          `건물 폴리곤의 양이 너무 많습니다. 
+          스크롤 휠로 지도를 확대한 후 다시 시도해 주세요
+        현재 지도 확대 레벨: ${maplevel}
+        현재 좌표 범위: ${bounds}`
+        );
+      }
     }
-  }, [maplevel, bounds]);
+  }, [fetchValue]);
+
   useEffect(() => {
     setFetchFlag(false);
     let temporary: IAddressAndPolygon[] = [];
@@ -363,20 +386,34 @@ function Map() {
             },
           });
         }
-        getBuildingPolygon(Content.polygon);
+        getBuildingPolygon(Content);
       });
     }
   }, [addressAndCheck, illegalBuildingList]);
 
   useEffect(() => {
+    if (kakaoMap) {
+      setMapLevel(kakaoMap.getLevel());
+      setBounds([
+        kakaoMap.getBounds().ha,
+        kakaoMap.getBounds().qa,
+        kakaoMap.getBounds().oa,
+        kakaoMap.getBounds().pa,
+      ]);
+      if (changeColor.length !== 0) {
+        kakaoMap.setLevel(1);
+        kakaoMap.setCenter(
+          new window.kakao.maps.LatLng(
+            changeColor[0].polygon[0][0],
+            changeColor[0].polygon[0][1]
+          )
+        );
+      }
+    }
+  }, [changeColor]);
+
+  useEffect(() => {
     if (changeColor.length === 1) {
-      kakaoMap.setCenter(
-        new window.kakao.maps.LatLng(
-          changeColor[0].polygon[0][0],
-          changeColor[0].polygon[0][1]
-        )
-      );
-      kakaoMap.setLevel(1);
       if (fetchFlag) {
         findTarget(changeColor[0]);
       }
@@ -394,13 +431,6 @@ function Map() {
           })
         );
     } else if (changeColor.length > 1) {
-      kakaoMap.setCenter(
-        new window.kakao.maps.LatLng(
-          changeColor[0].polygon[0][0],
-          changeColor[0].polygon[0][1]
-        )
-      );
-      kakaoMap.setLevel(1);
       if (fetchFlag) {
         changeColor.map((content) => {
           findTarget(content);
@@ -424,6 +454,18 @@ function Map() {
             })
           );
       }
+    } else {
+      addressAndKakaoPolygon.map((Content) =>
+        Content.polygon.setOptions({
+          strokeWeight: 1,
+          strokeColor: "#000000",
+          strokeOpacity: 1,
+          //strokeStyle: "",
+          fillColor: "#999999",
+          fillOpacity: 0.5,
+          zIndex: 30,
+        })
+      );
     }
   }, [changeColor, fetchFlag]);
   useEffect(() => {
@@ -439,12 +481,20 @@ function Map() {
   useEffect(() => {
     addressAndKakaoPolygon.map((Content) => Content.polygon.setMap(kakaoMap));
   }, [addressAndKakaoPolygon]);
+  useEffect(() => {
+    buildingAndKakaoPolygon.map((Content) => Content.polygon.setMap(kakaoMap));
+  }, [buildingAndKakaoPolygon]);
   return (
     <S.Container>
       <S.Topbar>
         <S.MenuButton onClick={() => setIsMenuClicked(!isMenuClicked)} />
         <S.Logo>SkyPatrol360</S.Logo>
         <SearchSection onClickFunction={setSearchedAddress} />
+        <S.FetchButton
+          onClick={() => setFetchValue((fetchValue) => fetchValue + 1)}
+        >
+          건물정보 새로고침
+        </S.FetchButton>
       </S.Topbar>
       <S.Sidebar>
         <S.MenuSection>
